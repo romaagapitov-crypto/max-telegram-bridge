@@ -1,36 +1,53 @@
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import asyncio
+import logging
+
+from aiogram import Bot, Dispatcher
+from aiogram.types import Message
+from aiogram.filters import CommandStart
+from aiogram.client.session.aiohttp import AiohttpSession
 
 from config import TELEGRAM_TOKEN
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Бот запущен"
+logging.basicConfig(level=logging.INFO)
+
+
+dp = Dispatcher()
+
+
+@dp.message(CommandStart())
+async def start_handler(message: Message):
+    print("Получен /start")
+
+    await message.answer(
+        "Бот работает через Tor!"
     )
 
 
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
+@dp.message()
+async def message_handler(message: Message):
+    print("Получено сообщение:", message.text)
 
-    print("Получено сообщение:", text)
-
-    await update.message.reply_text(
-        f"Получил: {text}"
+    await message.answer(
+        f"Получил: {message.text}"
     )
+
+
+async def main():
+
+    session = AiohttpSession(
+        proxy="socks5://127.0.0.1:9150"
+    )
+
+    bot = Bot(
+        token=TELEGRAM_TOKEN,
+        session=session
+    )
+
+    print("БОТ ЗАПУЩЕН")
+
+    await dp.start_polling(bot)
 
 
 def run_telegram_bot():
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-
-    app.add_handler(
-        CommandHandler("start", start)
-    )
-
-    app.add_handler(
-        MessageHandler(filters.TEXT, message_handler)
-    )
-
-    print("Telegram бот запущен")
-
-    app.run_polling()
+    asyncio.run(main())
