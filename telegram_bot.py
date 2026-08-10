@@ -8,7 +8,7 @@ from aiogram.types import Message
 from aiogram.filters import CommandStart
 from aiogram.client.session.aiohttp import AiohttpSession
 from dotenv import load_dotenv
-
+from database import get_max_chat_id
 from config import TELEGRAM_TOKEN
 
 
@@ -17,9 +17,6 @@ load_dotenv()
 MAX_TOKEN = os.getenv("MAX_TOKEN")
 
 MAX_API_URL = "https://platform-api2.max.ru"
-
-TELEGRAM_CHAT_ID = -5471339047
-MAX_CHAT_ID = -77682869790919
 
 logging.basicConfig(level=logging.INFO)
 
@@ -35,7 +32,7 @@ async def start_handler(message: Message):
     )
 
 
-async def send_to_max(text):
+async def send_to_max(text, max_chat_id):
     headers = {
         "Authorization": MAX_TOKEN,
         "Content-Type": "application/json"
@@ -46,11 +43,9 @@ async def send_to_max(text):
     }
 
     params = {
-        "chat_id": MAX_CHAT_ID
+        "chat_id": max_chat_id
     }
 
-    # Временно отключаем SSL-проверку,
-    # как и в max_bot.py
     connector = aiohttp.TCPConnector(ssl=False)
 
     try:
@@ -88,18 +83,26 @@ async def message_handler(message: Message):
     print("CHAT ID:", message.chat.id)
     print("CHAT TYPE:", message.chat.type)
 
-    # Обрабатываем только нашу Telegram-группу
-    if message.chat.id != TELEGRAM_CHAT_ID:
-        return
-
     if not message.text:
         return
 
+    max_chat_id = get_max_chat_id(message.chat.id)
+
+    if max_chat_id is None:
+        print("Для этой Telegram-группы мост не настроен")
+        return
+
+    print("MAX CHAT ID:", max_chat_id)
     print("Отправляем в MAX:", message.text)
 
+    sender_name = message.from_user.first_name
+
+    if message.from_user.last_name:
+        sender_name += f" {message.from_user.last_name}"
+
     await send_to_max(
-        f"[Telegram] {message.text}"
-    )
+        f"{sender_name}: {message.text}",
+        max_chat_id)
 
 
 async def main():
