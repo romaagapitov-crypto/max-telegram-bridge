@@ -7,7 +7,7 @@ from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
 
 from config import TELEGRAM_TOKEN
-
+from database import get_telegram_chat_id
 
 load_dotenv()
 
@@ -15,10 +15,8 @@ MAX_TOKEN = os.getenv("MAX_TOKEN")
 
 MAX_API_URL = "https://platform-api2.max.ru"
 
-TELEGRAM_CHAT_ID = -5471339047
-MAX_CHAT_ID = -77682869790919
 
-async def send_to_telegram(text):
+async def send_to_telegram(text, telegram_chat_id):
     session = AiohttpSession(
         proxy="socks5://127.0.0.1:9150"
     )
@@ -30,8 +28,8 @@ async def send_to_telegram(text):
 
     try:
         await bot.send_message(
-            chat_id=TELEGRAM_CHAT_ID,
-            text=f"[MAX] {text}"
+            chat_id=telegram_chat_id,
+            text=text
         )
 
         print("Сообщение отправлено в Telegram")
@@ -50,25 +48,37 @@ async def process_update(update):
         return
 
     recipient = message.get("recipient", {})
-    chat_id = recipient.get("chat_id")
+    max_chat_id = recipient.get("chat_id")
     chat_type = recipient.get("chat_type")
 
     body = message.get("body", {})
     text = body.get("text")
+    sender = message.get("sender", {})
+    sender_name = sender.get("name")
 
-    # Обрабатываем только нашу группу MAX
     if chat_type != "chat":
-        return
-
-    if chat_id != MAX_CHAT_ID:
         return
 
     if not text:
         return
 
-    print("Сообщение из MAX-группы:", text)
+    telegram_chat_id = get_telegram_chat_id(max_chat_id)
 
-    await send_to_telegram(text)
+    if telegram_chat_id is None:
+        print("Для этой MAX-группы мост не настроен")
+        return
+
+    print("Сообщение из MAX-группы:", text)
+    print("MAX CHAT ID:", max_chat_id)
+    print("TELEGRAM CHAT ID:", telegram_chat_id)
+
+    if sender_name:
+        text = f"{sender_name}: {text}"
+
+    await send_to_telegram(
+        text,
+        telegram_chat_id
+    )
 
 
 async def get_updates():
@@ -78,8 +88,6 @@ async def get_updates():
         "Authorization": MAX_TOKEN
     }
 
-    # Пока оставляем SSL отключённым,
-    # поскольку с проверкой сертификата MAX API не подключается
     connector = aiohttp.TCPConnector(ssl=False)
 
     async with aiohttp.ClientSession(
